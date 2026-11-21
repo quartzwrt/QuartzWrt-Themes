@@ -1,0 +1,36 @@
+name: Sync upstream themes
+
+# kwrt 式聚合节奏 + 审查闸门：每周同步上游主题仓并开 PR（不直接推 main）。
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # 每周一 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mirror upstream themes
+        run: bash scripts/sync-mirrors.sh
+
+      - name: Open/update sync PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: sync/upstreams
+          delete-branch: true
+          commit-message: 'sync: mirror upstream themes'
+          title: 'sync: 上游主题同步（自动）'
+          body: |
+            自动同步上游主题镜像（`scripts/sync-mirrors.sh`）。
+
+            审查要点：
+            - [ ] 许可未变化（GPL-3.0-or-later / Apache-2.0）
+            - [ ] 包目录与 `LUCI_TITLE`/依赖未出现破坏性变化
+            - [ ] 与基座 luci 主题无同名/目录遮蔽（CI `check-duplicate-packages.sh` 兜底）
+            - [ ] `docs/FORKS.md` 的锁定/上次同步日期已更新
