@@ -26,8 +26,8 @@ trap 'rm -rf "$TMP"' EXIT
 ENTRIES=(
   "vantage|https://github.com/anothaDev/luci-theme-vantage.git|main|.|themes/vantage|.github dev prototypes security-tests tests keys .release-manifests"
   "7dollar|https://github.com/itsmaiGe/luci-theme-7dollar.git|main|.|themes/7dollar|.github dist docs scripts"
-  "aurora|https://github.com/eamonxg/luci-theme-aurora.git|master|.|themes/aurora|.github .dev .vscode .claude docs"
-  "aurora-config|https://github.com/eamonxg/luci-app-aurora-config.git|master|.|themes/aurora-config|.github .dev docs"
+  "aurora|https://github.com/eamonxg/luci-theme-aurora.git|master|.|themes/luci-theme-aurora|.github .dev .vscode .claude docs"
+  "aurora-config|https://github.com/eamonxg/luci-app-aurora-config.git|master|.|themes/luci-app-aurora-config|.github .dev docs"
 )
 
 want=("$@")
