@@ -74,7 +74,7 @@ For changes to Makefiles, `root/` files or install scripts, also build the
 packages (commit first; the script builds a clean clone of the commit):
 
 ```sh
-dev/build/sdk-build.sh 25.12.4
+dev/build/sdk-build.sh 25.12.6
 ```
 
 ## Translations
@@ -85,6 +85,8 @@ Each package has its own catalogue, generated with LuCI's own tools:
 |---|---|---|
 | dashboard | `luci-app-vantage/po/templates/vantage.pot` | `luci-app-vantage/po/<lang>/vantage.po` |
 | theme | `luci-theme-vantage/po/templates/vantage-theme.pot` | `luci-theme-vantage/po/<lang>/vantage-theme.po` |
+| access points add-on | `luci-app-vantage-aps/po/templates/vantage-aps.pot` | `luci-app-vantage-aps/po/<lang>/vantage-aps.po` |
+| traffic add-on | `luci-app-vantage-traffic/po/templates/vantage-traffic.pot` | `luci-app-vantage-traffic/po/<lang>/vantage-traffic.po` |
 
 `dev/i18n/update.sh` needs git, perl and GNU gettext (Debian/Ubuntu:
 `apt install gettext`; macOS: `brew install gettext`). On its first run it
@@ -99,7 +101,7 @@ fetches LuCI's i18n scripts at the commit the pinned SDK builds with
 dev/i18n/update.sh --add de
 ```
 
-This creates both catalogues from the templates. Translate them with any
+This creates the four catalogues from the templates. Translate them with any
 PO editor (Poedit, Lokalize, or a text editor): fill in each `msgstr`. An
 empty `msgstr` keeps the English text, so you can translate in several
 steps.
@@ -154,8 +156,9 @@ keeping the display format in a format string (`_('%s Gbit/s').format(v)`,
 helper, run `dev/i18n/update.sh` and commit the templates with it.
 
 CI builds one language package per package and language
-(`luci-i18n-vantage-<lang>` and `luci-i18n-vantage-theme-<lang>`, with
-`<lang>` as LuCI's package suffix, e.g. `zh-cn`) and checks each against
+(`luci-i18n-vantage-<lang>`, `luci-i18n-vantage-theme-<lang>`,
+`luci-i18n-vantage-aps-<lang>` and `luci-i18n-vantage-traffic-<lang>`,
+with `<lang>` as LuCI's package suffix, e.g. `zh-cn`) and checks each against
 your catalogues; there is nothing else to set up.
 
 ## Rules
@@ -220,20 +223,43 @@ SDK.
 ## Releases
 
 1. Add the release to `CHANGELOG.md` (user-visible changes, newest
-   first), bump `PKG_VERSION` in the three Makefiles and the `VERSION`
+   first), bump `PKG_VERSION` in the four Makefiles and the `VERSION`
    lines of `overview.js` and `menu-vantage.js`
    (`tests/version.test.js` checks them), with the version in
    `overview.js`'s `NEWS_URL` (the "what's new" link;
    `tests/view.test.js` checks it), and commit.
 2. Build that commit locally for both releases:
-   `dev/build/sdk-build.sh 25.12.4` and `dev/build/sdk-build.sh 24.10.8`.
-3. Commit both builds' hashes, `dist/25.12.4/SHA256SUMS` and
+   `dev/build/sdk-build.sh 25.12.6` and `dev/build/sdk-build.sh 24.10.8`.
+3. Commit both builds' hashes, `dist/25.12.6/SHA256SUMS` and
    `dist/24.10.8/SHA256SUMS` in one file, as
    `.release-manifests/v<version>.sha256`, push, then push the tag
    `v<version>` on that commit.
 4. CI rebuilds the tag, refuses to publish unless its hashes match the
    committed manifest, and creates the GitHub release with the packages,
    `SHA256SUMS` and `BUILDINFO`.
+5. The job "Publish signed package repositories" then publishes the
+   package feeds on GitHub Pages; until it passes, the feeds still serve
+   the previous release. A failed deploy is tried once more 30 seconds
+   later (the run's artifact list can lag the upload). If the job still
+   fails, read the error, delete that run's `github-pages` artifact on
+   the run's page (a re-run uploads another, and the deploy refuses two
+   of the name), then use "Re-run failed jobs", not "Re-run all jobs"
+   (that builds again and needs the approval again). Leave the
+   `vantage-*` artifacts: the re-run publishes from them.
+
+### Version numbers
+
+Three numbers and nothing else, so that both package managers put every
+release in the same order.
+
+- The third goes up for fixes and for small additions that change no
+  default and no permission (1.1.0 to 1.1.1).
+- The second for a new package, new tiles, a new permission or a changed
+  default (1.0.21 to 1.1.0).
+- A test build before a release takes a fourth number just below it
+  (1.0.99.1 before 1.1.0): a suffix such as `_beta1` sorts above the
+  release for opkg. It goes out as a GitHub pre-release under a tag that
+  does not start with `v`, built by hand, so the feed never carries it.
 
 By contributing you agree that your contribution is licensed under the
 GNU General Public License, version 3 or any later version

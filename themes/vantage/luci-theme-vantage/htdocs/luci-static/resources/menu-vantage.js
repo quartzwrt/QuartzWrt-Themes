@@ -65,7 +65,7 @@ const MOTION_EVENT = 'vantage:tick';
    key, also what the dashboard reads under another theme) counts until
    the router has one. */
 /* this package's version, as its Makefile has it (tests/version.test.js) */
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 /* Check for updates (Appearance): when asked, and never on its own unless
    the daily check below is on, the browser reads the project's 24.10
    package list on GitHub Pages (the same release as 25.12's), without
@@ -103,11 +103,12 @@ const LOOK = {
 };
 const LOOK_SYNC = 'vantage.look';         /* another tab saved one: { name, value } */
 const LOOK_SET_EVENT = 'vantage:backdrop-set';   /* the dashboard's own picker hands its pick over */
-/* The dashboard's Customize saves its chart style and layouts with the
-   Appearance, in one write when it is done: { values, done(ok) }. The
-   template reads them back with these same rules. */
+/* The dashboard's Customize saves its chart style, network path form and
+   layouts with the Appearance, in one write when it is done: { values,
+   done(ok) }. The template reads them back with these same rules. */
 const VIEW_SAVE_EVENT = 'vantage:view-save';
 const VIEW_CHARTS = [ 'overlay', 'log', 'mirror', 'mirror-split', 'lanes' ];
+const VIEW_PATHS = [ 'full', 'compact' ];
 const VIEW_LAYOUT = /^(default|[a-z]{1,8}:[0-3]:[1-4](:h)?( [a-z]{1,8}:[0-3]:[1-4](:h)?){0,11})$/;
 /* The palette finds more than pages where someone answers PALETTE_EVENT:
    the dashboard, while its page is open, with its clients, radios, Wi-Fi
@@ -280,6 +281,7 @@ function lookWrite(values) {
 }
 function viewValue(name, value) {
 	if (name === 'chart') return VIEW_CHARTS.indexOf(value) >= 0;
+	if (name === 'path') return VIEW_PATHS.indexOf(value) >= 0;
 	return /^layout_(wide|mid|narrow)(_wired)?$/.test(name) && typeof value === 'string' && VIEW_LAYOUT.test(value);
 }
 

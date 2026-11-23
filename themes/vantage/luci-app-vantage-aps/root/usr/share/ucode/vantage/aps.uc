@@ -549,10 +549,13 @@ function moved(error) {
 // 1.5 kB (128 KiB of "{}," took 66 MB). So the text may open at most
 // MAX_OPEN objects and arrays and hold at most MAX_COMMAS commas, counted
 // as bytes wherever they stand, in a string too. The fullest report an
-// access point can make has 437 and 2516, and its free text (16 SSIDs,
-// its name and model) could add 639 to either.
-const MAX_OPEN = 1280;
-const MAX_COMMAS = 4096;
+// access point can make has 949 and 6676 since each station carries its
+// link (#155) and each port the switch's counters (#156), and its free
+// text (16 SSIDs, its name and model) could add 639 to either; the
+// counts leave room for a field more. 2048 objects take json() about as
+// much memory as that fullest report does (some 2.5 MB).
+const MAX_OPEN = 2048;
+const MAX_COMMAS = 8192;
 const RE_NOT_OPEN = /[^[{]+/g;
 const RE_NOT_COMMA = /[^,]+/g;
 
@@ -564,6 +567,17 @@ function parseable(text) {
 
 function int_in(v, lo, hi) {
 	return (type(v) == 'int' && v >= lo && v <= hi) ? v : null;
+}
+
+// a station's link (the report's phy()), checked field by field
+function phy(r) {
+	if (type(r) != 'object')
+		return null;
+
+	return {
+		mhz: int_in(r.mhz, 1, 640), mcs: int_in(r.mcs, 0, 31), nss: int_in(r.nss, 1, 16),
+		ht: r.ht === true, vht: r.vht === true, he: r.he === true, eht: r.eht === true, sgi: r.sgi === true
+	};
 }
 
 // well-formed UTF-8 without control characters, at most max bytes; else ''
@@ -654,7 +668,8 @@ function normalize(r) {
 			signal: int_in(s.signal, -120, -1),
 			rx_rate: int_in(s.rx_rate, 1, 100000000), tx_rate: int_in(s.tx_rate, 1, 100000000),
 			rx_bytes: int_in(s.rx_bytes, 0, MAX_BYTES), tx_bytes: int_in(s.tx_bytes, 0, MAX_BYTES),
-			connected: int_in(s.connected, 0, 0x7fffffff)
+			connected: int_in(s.connected, 0, 0x7fffffff),
+			rx_phy: phy(s.rx_phy), tx_phy: phy(s.tx_phy)
 		});
 	}
 
@@ -665,8 +680,13 @@ function normalize(r) {
 		if (!netdev(p) || type(v) != 'object' || !int_in(v.hosts, 1, MAX_WIRED))
 			continue;
 
+		// the switch chip's own counters (#156), both or neither; a
+		// report from before them has none
+		let hr = int_in(v.hw_rx_bytes, 0, MAX_BYTES), ht = int_in(v.hw_tx_bytes, 0, MAX_BYTES);
+
 		out.ports[p] = { speed: int_in(v.speed, 1, 1000000), rx_bytes: int_in(v.rx_bytes, 0, MAX_BYTES),
-			tx_bytes: int_in(v.tx_bytes, 0, MAX_BYTES), hosts: v.hosts };
+			tx_bytes: int_in(v.tx_bytes, 0, MAX_BYTES), hosts: v.hosts,
+			...((hr != null && ht != null) ? { hw_rx_bytes: hr, hw_tx_bytes: ht } : {}) };
 		nports++;
 	}
 
@@ -699,6 +719,20 @@ function rate(now_b, prev_b, dt) {
 	return (d <= MAX_STEP) ? int(d * 8 / dt) : null;
 }
 
+// a port's [ rx, tx ] bit/s between two reports: from the switch chip's
+// counters where both carry them, from the kernel's where neither does,
+// and none where one does and the other does not (#156): two sources
+// never make one rate
+function port_rate(p, q, dt) {
+	let hw = (p.hw_rx_bytes != null);
+
+	if (q && (q.hw_rx_bytes != null) != hw)
+		return [ null, null ];
+
+	return hw ? [ rate(p.hw_rx_bytes, q?.hw_rx_bytes, dt), rate(p.hw_tx_bytes, q?.hw_tx_bytes, dt) ]
+		: [ rate(p.rx_bytes, q?.rx_bytes, dt), rate(p.tx_bytes, q?.tx_bytes, dt) ];
+}
+
 // what the dashboard gets of a report (normalize's), with rates against
 // the one before it dt seconds earlier (dt 0: none yet)
 function view(r, prev, dt) {
@@ -713,14 +747,13 @@ function view(r, prev, dt) {
 		stations: map(r.stations, (x) => ({
 			mac: x.mac, ifname: x.ifname, signal: x.signal, rxRate: x.rx_rate, txRate: x.tx_rate,
 			rx: rate(x.rx_bytes, pst[x.mac]?.rx_bytes, dt), tx: rate(x.tx_bytes, pst[x.mac]?.tx_bytes, dt),
-			connected: x.connected
+			connected: x.connected, rxPhy: x.rx_phy, txPhy: x.tx_phy
 		})),
 		// a port's traffic is its host's only when the host has it alone
 		wired: map(r.wired, (x) => {
-			let p = r.ports[x.port], q = pport[x.port], one = (p.hosts == 1);
+			let p = r.ports[x.port], q = pport[x.port], one = (p.hosts == 1), b = one ? port_rate(p, q, dt) : [ null, null ];
 
-			return { mac: x.mac, port: x.port, speed: p.speed,
-				rx: one ? rate(p.rx_bytes, q?.rx_bytes, dt) : null, tx: one ? rate(p.tx_bytes, q?.tx_bytes, dt) : null };
+			return { mac: x.mac, port: x.port, speed: p.speed, rx: b[0], tx: b[1] };
 		})
 	};
 }
